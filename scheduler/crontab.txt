@@ -1,0 +1,8 @@
+# BeyTV Scheduler (Asia/Beirut assumed)
+SHELL=/bin/bash
+# Start qBittorrent at 00:01 daily
+1 0 * * * /bin/bash /path/to/scheduler/start_qb.sh >/tmp/beytv_start.log 2>&1
+# Stop qBittorrent at 06:01 daily
+1 6 * * * /bin/bash /path/to/scheduler/stop_qb.sh >/tmp/beytv_stop.log 2>&1
+# Optional: enforce day throttle every hour, 07:00-23:00
+0 7-23 * * * /bin/bash /path/to/scheduler/day_throttle.sh >/tmp/beytv_throttle.log 2>&1
