@@ -13,7 +13,7 @@ localPort = 8000
 externalPort = 80
 
 [deployment]
-run = ["python3", "main_qbt.py"]
+run = ["python3", "main.py"]
 
 [env]
 PYTHONPATH = "/home/runner/BeyTV"
@@ -60,23 +60,23 @@ type = "request"
 
 [debugger.interactive.launchMessage.arguments]
 args = []
-code = "main_qbt.py"
+code = "main.py"
 console = "integratedTerminal"
 cwd = "."
 environment = []
 externalConsole = false
 justMyCode = false
-program = "main_qbt.py"
+program = "main.py"
 python = "python3"
 request = "launch"
 stopOnEntry = false
 type = "python"
 
 [gitHubImport]
-requiredFiles = [".replit", "replit.nix", "main_qbt.py", "requirements.txt"]
+requiredFiles = [".replit", "replit.nix", "main.py", "requirements.txt"]
 
 [replit]
-entrypoint = "main_qbt.py"
+entrypoint = "main.py"
 
 [replit.devel]
 args = []
