@@ -13,6 +13,7 @@ import subprocess
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 import requests
+import feedparser
 from datetime import datetime
 
 class QBittorrentAPI:
@@ -130,16 +131,119 @@ class QBittorrentAPI:
         except:
             return {'connected': False}
 
+class RSSManager:
+    """RSS feed manager for automatic torrent discovery"""
+    
+    def __init__(self):
+        self.feeds = {
+            'movies_1080p': 'https://yts.mx/rss/0/all/all/0',
+            'tv_shows': 'https://eztv.re/ezrss.xml',
+            'movies_4k': 'https://torrentgalaxy.to/rss?c5=1&c42=1&c46=1',
+            'popular': 'https://torrentgalaxy.to/rss',
+            'recent_movies': 'https://rarbg.to/rssdd.php?categories=44;45;47;50;51;52;42;46',
+            'recent_tv': 'https://rarbg.to/rssdd.php?categories=18;41;49'
+        }
+    
+    def get_feed_items(self, feed_name, limit=10):
+        """Get items from specific RSS feed"""
+        if feed_name not in self.feeds:
+            return []
+        
+        try:
+            feed = feedparser.parse(self.feeds[feed_name])
+            items = []
+            
+            for entry in feed.entries[:limit]:
+                # Extract torrent info from RSS entry
+                item = {
+                    'title': entry.title,
+                    'description': getattr(entry, 'description', ''),
+                    'link': entry.link,
+                    'magnet': self.extract_magnet(entry),
+                    'size': self.extract_size(entry),
+                    'published': getattr(entry, 'published', ''),
+                    'source': feed_name
+                }
+                items.append(item)
+            
+            return items
+        except Exception as e:
+            print(f"RSS feed error for {feed_name}: {e}")
+            return []
+    
+    def extract_magnet(self, entry):
+        """Extract magnet link from RSS entry"""
+        # Check various possible locations for magnet links
+        if hasattr(entry, 'enclosures') and entry.enclosures:
+            for enclosure in entry.enclosures:
+                if enclosure.href.startswith('magnet:'):
+                    return enclosure.href
+        
+        # Check in description
+        description = getattr(entry, 'description', '')
+        if 'magnet:' in description:
+            import re
+            magnet_match = re.search(r'magnet:\?[^"<>\s]+', description)
+            if magnet_match:
+                return magnet_match.group(0)
+        
+        # Fallback to entry link if it's a magnet
+        if hasattr(entry, 'link') and entry.link.startswith('magnet:'):
+            return entry.link
+        
+        return entry.link  # Fallback to regular link
+    
+    def extract_size(self, entry):
+        """Extract file size from RSS entry"""
+        # Look for size in various formats
+        description = getattr(entry, 'description', '')
+        
+        import re
+        size_patterns = [
+            r'(\d+\.?\d*)\s*(GB|MB|TB)',
+            r'Size:\s*(\d+\.?\d*)\s*(GB|MB|TB)',
+            r'(\d+\.?\d*)\s*(GiB|MiB|TiB)'
+        ]
+        
+        for pattern in size_patterns:
+            match = re.search(pattern, description, re.IGNORECASE)
+            if match:
+                return f"{match.group(1)} {match.group(2)}"
+        
+        return "Unknown"
+    
+    def get_all_feeds(self, limit_per_feed=5):
+        """Get items from all RSS feeds"""
+        all_items = []
+        for feed_name in self.feeds:
+            items = self.get_feed_items(feed_name, limit_per_feed)
+            all_items.extend(items)
+        
+        # Sort by most recent
+        try:
+            all_items.sort(key=lambda x: x['published'], reverse=True)
+        except:
+            pass
+        
+        return all_items
+
 class BeyTVServer(BaseHTTPRequestHandler):
     
     def __init__(self, *args, **kwargs):
-        # Initialize qBittorrent connection
+        # Initialize qBittorrent connection and RSS manager
         self.qbt = QBittorrentAPI()
+        self.rss = RSSManager()
         super().__init__(*args, **kwargs)
     
     def do_GET(self):
         if self.path == '/':
             self.serve_dashboard()
+        elif self.path == '/api/feeds':
+            self.get_rss_feeds()
+        elif self.path == '/api/feeds/refresh':
+            self.refresh_feeds()
+        elif self.path.startswith('/api/feeds/'):
+            self.get_specific_feed()
         elif self.path == '/api/local-status':
             self.get_local_status()
         elif self.path == '/api/qbt-status':
@@ -171,7 +275,7 @@ class BeyTVServer(BaseHTTPRequestHandler):
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BeyTV Remote Control - qBittorrent + Plex</title>
+    <title>BeyTV Remote Control - RSS + qBittorrent + Plex</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -192,20 +296,20 @@ class BeyTVServer(BaseHTTPRequestHandler):
         .btn.download:hover { background: rgba(76, 175, 80, 0.8); }
         .btn.torrent { background: rgba(33, 150, 243, 0.6); }
         .btn.torrent:hover { background: rgba(33, 150, 243, 0.8); }
+        .btn.rss { background: rgba(255, 152, 0, 0.6); }
+        .btn.rss:hover { background: rgba(255, 152, 0, 0.8); }
         .status { position: fixed; top: 1rem; right: 1rem; background: rgba(0,0,0,0.8); padding: 0.5rem 1rem; border-radius: 20px; font-size: 0.9rem; }
         .local-status, .qbt-status { background: rgba(255,255,255,0.05); padding: 1rem; border-radius: 8px; margin: 1rem 0; }
-        .queue-item, .torrent-item { background: rgba(255,255,255,0.05); padding: 1rem; margin: 0.5rem 0; border-radius: 8px; border-left: 3px solid #4CAF50; }
+        .queue-item, .torrent-item, .rss-item { background: rgba(255,255,255,0.05); padding: 1rem; margin: 0.5rem 0; border-radius: 8px; border-left: 3px solid #4CAF50; }
+        .rss-item { border-left-color: #ff9800; }
         .search-box { width: 100%; padding: 0.75rem; border: 1px solid rgba(255,255,255,0.3); border-radius: 8px; background: rgba(255,255,255,0.1); color: white; margin-bottom: 1rem; }
         .loading { text-align: center; padding: 2rem; }
-        .offline { border-left-color: #f44336 !important; }
-        .downloading { border-left-color: #ff9800 !important; }
-        .completed { border-left-color: #4caf50 !important; }
-        .seeding { border-left-color: #00bcd4 !important; }
-        .tabs { display: flex; margin-bottom: 1rem; }
-        .tab { padding: 0.5rem 1rem; margin-right: 0.5rem; border-radius: 8px 8px 0 0; cursor: pointer; background: rgba(255,255,255,0.1); }
+        .tabs { display: flex; margin-bottom: 1rem; flex-wrap: wrap; }
+        .tab { padding: 0.5rem 1rem; margin-right: 0.5rem; margin-bottom: 0.5rem; border-radius: 8px 8px 0 0; cursor: pointer; background: rgba(255,255,255,0.1); }
         .tab.active { background: rgba(255,255,255,0.2); }
         .tab-content { display: none; }
         .tab-content.active { display: block; }
+        .feed-selector { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; }
     </style>
 </head>
 <body>
@@ -214,16 +318,20 @@ class BeyTVServer(BaseHTTPRequestHandler):
     <div class="container">
         <div class="header">
             <h1>🎬 BeyTV Remote Control</h1>
-            <p>qBittorrent + Plugins → Download → Plex Library</p>
+            <p>RSS Feeds → qBittorrent + Plugins → Plex Library</p>
         </div>
         
         <div class="controls">
             <div class="card">
-                <h3>🖥️ Local Client Status</h3>
-                <div id="localStatus" class="local-status">
-                    <div class="loading">Checking local client...</div>
+                <h3>� RSS Feeds</h3>
+                <div class="feed-selector">
+                    <button class="btn rss" onclick="loadFeed('all')">All Feeds</button>
+                    <button class="btn rss" onclick="loadFeed('movies_1080p')">Movies 1080p</button>
+                    <button class="btn rss" onclick="loadFeed('movies_4k')">Movies 4K</button>
+                    <button class="btn rss" onclick="loadFeed('tv_shows')">TV Shows</button>
+                    <button class="btn rss" onclick="loadFeed('popular')">Popular</button>
                 </div>
-                <button class="btn" onclick="refreshStatus()">Refresh</button>
+                <button class="btn" onclick="refreshAllFeeds()">Refresh All Feeds</button>
             </div>
             
             <div class="card">
@@ -235,22 +343,27 @@ class BeyTVServer(BaseHTTPRequestHandler):
             </div>
             
             <div class="card">
-                <h3>🔍 Torrent Search</h3>
-                <input type="text" class="search-box" id="searchBox" placeholder="Search torrents via qBittorrent plugins..." onkeypress="handleSearch(event)">
-                <button class="btn" onclick="searchTorrents()">Search All Plugins</button>
-                <button class="btn" onclick="loadPopular()">Popular Torrents</button>
+                <h3>🔍 Manual Search</h3>
+                <input type="text" class="search-box" id="searchBox" placeholder="Search qBittorrent plugins..." onkeypress="handleSearch(event)">
+                <button class="btn" onclick="searchTorrents()">Search Plugins</button>
             </div>
         </div>
         
         <div class="card">
             <div class="tabs">
-                <div class="tab active" onclick="showTab('search')">🔍 Search Results</div>
+                <div class="tab active" onclick="showTab('rss')">📡 RSS Feeds</div>
+                <div class="tab" onclick="showTab('search')">🔍 Search Results</div>
                 <div class="tab" onclick="showTab('active')">🌊 Active Torrents</div>
                 <div class="tab" onclick="showTab('queue')">📥 Download Queue</div>
             </div>
             
-            <div id="searchTab" class="tab-content active">
-                <h2>🔍 Torrent Search Results</h2>
+            <div id="rssTab" class="tab-content active">
+                <h2>� Latest from RSS Feeds</h2>
+                <div id="rssContent" class="loading">Loading RSS feeds...</div>
+            </div>
+            
+            <div id="searchTab" class="tab-content">
+                <h2>🔍 Search Results</h2>
                 <div id="searchContent" class="loading">Use search above to find torrents...</div>
             </div>
             
@@ -267,7 +380,7 @@ class BeyTVServer(BaseHTTPRequestHandler):
     </div>
 
     <script>
-        let currentTab = 'search';
+        let currentTab = 'rss';
         
         function showTab(tab) {
             // Hide all tabs
@@ -281,17 +394,62 @@ class BeyTVServer(BaseHTTPRequestHandler):
             currentTab = tab;
             
             // Load content for active tabs
+            if (tab === 'rss') loadFeed('all');
             if (tab === 'active') refreshQBTTorrents();
             if (tab === 'queue') refreshQueue();
         }
         
-        async function refreshStatus() {
+        async function loadFeed(feedName) {
+            document.getElementById('rssContent').innerHTML = '<div class="loading">Loading RSS feed...</div>';
+            showTab('rss');
+            
             try {
-                const response = await fetch('/api/local-status');
-                const status = await response.json();
-                displayLocalStatus(status);
+                const url = feedName === 'all' ? '/api/feeds' : `/api/feeds/${feedName}`;
+                const response = await fetch(url);
+                const items = await response.json();
+                displayRSSItems(items);
             } catch (error) {
-                displayLocalStatus({online: false, error: error.message});
+                document.getElementById('rssContent').innerHTML = '<div class="loading">❌ Failed to load RSS feeds</div>';
+            }
+        }
+        
+        function displayRSSItems(items) {
+            const container = document.getElementById('rssContent');
+            
+            if (!items || items.length === 0) {
+                container.innerHTML = '<div class="loading">No items in RSS feeds</div>';
+                return;
+            }
+            
+            container.innerHTML = items.map(item => `
+                <div class="rss-item">
+                    <div style="font-weight: bold;">${item.title}</div>
+                    <div style="font-size: 0.9rem; opacity: 0.8; margin: 0.5rem 0;">
+                        Size: ${item.size} | 
+                        Source: ${item.source} | 
+                        Published: ${new Date(item.published).toLocaleDateString()}
+                    </div>
+                    <div style="font-size: 0.85rem; opacity: 0.7; margin: 0.5rem 0;">
+                        ${item.description.substring(0, 150)}...
+                    </div>
+                    <div>
+                        <button class="btn torrent" onclick="addToQBT('${item.magnet}', '${item.title.replace(/'/g, "\\'")}')">Add to qBittorrent</button>
+                        <button class="btn download" onclick="queueForPlex('${item.magnet}', '${item.title.replace(/'/g, "\\'")}')">Queue for Plex</button>
+                        <button class="btn" onclick="viewDetails('${item.link}')">View Details</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        async function refreshAllFeeds() {
+            document.getElementById('rssContent').innerHTML = '<div class="loading">Refreshing all RSS feeds...</div>';
+            try {
+                const response = await fetch('/api/feeds/refresh');
+                const data = await response.json();
+                displayRSSItems(data.items);
+                alert(`✅ Refreshed ${data.items.length} items from RSS feeds`);
+            } catch (error) {
+                document.getElementById('rssContent').innerHTML = '<div class="loading">❌ Failed to refresh feeds</div>';
             }
         }
         
@@ -302,23 +460,6 @@ class BeyTVServer(BaseHTTPRequestHandler):
                 displayQBTStatus(status);
             } catch (error) {
                 displayQBTStatus({connected: false, error: error.message});
-            }
-        }
-        
-        function displayLocalStatus(status) {
-            const container = document.getElementById('localStatus');
-            
-            if (status.online) {
-                container.innerHTML = `
-                    <div style="color: #4CAF50;">🟢 Local Client Online</div>
-                    <div>Plex Path: ${status.downloads_path || '~/Downloads/BeyTV'}</div>
-                    <div>Space: ${status.available_space ? Math.round(status.available_space/1024/1024/1024) + 'GB' : 'Unknown'}</div>
-                `;
-            } else {
-                container.innerHTML = `
-                    <div style="color: #f44336;">🔴 Local Client Offline</div>
-                    <div>Run local_client.py on your machine</div>
-                `;
             }
         }
         
@@ -333,7 +474,7 @@ class BeyTVServer(BaseHTTPRequestHandler):
                     <div>Download: ${Math.round((status.download_speed || 0) / 1024)}KB/s</div>
                     <div>Upload: ${Math.round((status.upload_speed || 0) / 1024)}KB/s</div>
                 `;
-                statusIndicator.textContent = '🟢 Ready to Download';
+                statusIndicator.textContent = '🟢 RSS + qBittorrent Ready';
             } else {
                 container.innerHTML = `
                     <div style="color: #f44336;">🔴 qBittorrent Offline</div>
@@ -357,7 +498,7 @@ class BeyTVServer(BaseHTTPRequestHandler):
                 return;
             }
             
-            document.getElementById('searchContent').innerHTML = '<div class="loading">Searching all qBittorrent plugins...</div>';
+            document.getElementById('searchContent').innerHTML = '<div class="loading">Searching qBittorrent plugins...</div>';
             showTab('search');
             
             try {
@@ -434,6 +575,10 @@ class BeyTVServer(BaseHTTPRequestHandler):
             }
         }
         
+        function viewDetails(url) {
+            window.open(url, '_blank');
+        }
+        
         async function refreshQBTTorrents() {
             document.getElementById('activeContent').innerHTML = '<div class="loading">Loading active torrents...</div>';
             try {
@@ -498,31 +643,19 @@ class BeyTVServer(BaseHTTPRequestHandler):
             `).join('');
         }
         
-        function loadPopular() {
-            // Mock popular torrents
-            const popular = [
-                {fileName: "Popular Movie 2025 1080p", fileSize: "2.1GB", nbSeeders: 150, nbLeechers: 12, siteUrl: "YTS", descrLink: "magnet:?xt=urn:btih:example1"},
-                {fileName: "TV Series S01E01 720p", fileSize: "350MB", nbSeeders: 89, nbLeechers: 5, siteUrl: "EZTV", descrLink: "magnet:?xt=urn:btih:example2"},
-                {fileName: "Documentary 2025 1080p", fileSize: "1.8GB", nbSeeders: 67, nbLeechers: 8, siteUrl: "TPB", descrLink: "magnet:?xt=urn:btih:example3"}
-            ];
-            displaySearchResults(popular);
-            showTab('search');
-        }
-        
-        // Auto-refresh every 15 seconds
+        // Auto-refresh every 30 seconds
         setInterval(() => {
-            refreshStatus();
             refreshQBT();
+            if (currentTab === 'rss') loadFeed('all');
             if (currentTab === 'active') refreshQBTTorrents();
             if (currentTab === 'queue') refreshQueue();
-        }, 15000);
+        }, 30000);
         
         // Initial load
         window.addEventListener('load', () => {
             setTimeout(() => {
-                refreshStatus();
                 refreshQBT();
-                loadPopular();
+                loadFeed('all');
             }, 1000);
         });
     </script>
@@ -532,6 +665,55 @@ class BeyTVServer(BaseHTTPRequestHandler):
         self.send_header('Content-type', 'text/html')
         self.end_headers()
         self.wfile.write(html.encode())
+    
+    def get_rss_feeds(self):
+        """Get combined RSS feed items"""
+        try:
+            items = self.rss.get_all_feeds(limit_per_feed=8)
+            
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps(items).encode())
+            
+        except Exception as e:
+            self.send_error(500, str(e))
+    
+    def get_specific_feed(self):
+        """Get items from specific RSS feed"""
+        try:
+            # Extract feed name from path: /api/feeds/movies_1080p
+            feed_name = self.path.split('/')[-1]
+            items = self.rss.get_feed_items(feed_name, limit=20)
+            
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps(items).encode())
+            
+        except Exception as e:
+            self.send_error(500, str(e))
+    
+    def refresh_feeds(self):
+        """Force refresh all RSS feeds"""
+        try:
+            # Clear any cached data and fetch fresh
+            self.rss = RSSManager()
+            items = self.rss.get_all_feeds(limit_per_feed=10)
+            
+            response = {
+                "status": "success", 
+                "message": f"Refreshed {len(items)} items from RSS feeds",
+                "items": items
+            }
+            
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps(response).encode())
+            
+        except Exception as e:
+            self.send_error(500, str(e))
     
     def get_qbt_status(self):
         """Get qBittorrent status"""
