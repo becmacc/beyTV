@@ -1,36 +1,34 @@
-# 🎬 BeyTV - qBittorrent Edition
-**Complete Remote Media Management with Real Torrent Downloads**
+# 🎬 BeyTV - RSS + qBittorrent Edition
+**Complete Remote Media Management with Automatic Torrent Discovery**
 
-## 🚀 Quick Start
+## 🚀 Cloud Deployment (Recommended)
 ```bash
-# 1. Start qBittorrent with Web UI enabled (localhost:8080)
-# 2. Install search plugins in qBittorrent
-# 3. Run BeyTV:
-./start.sh
-# 4. Open http://localhost:8000
+# 1. Import to Replit: https://github.com/becmacc/beyTV
+# 2. Click "Run" - automatic RSS + qBittorrent integration
+# 3. Access from any device worldwide!
 ```
 
 ## ✨ Features
-🌊 **Real Torrent Search** via qBittorrent plugins  
-🎯 **Dual Downloads**: qBittorrent direct OR Plex-organized  
-📱 **Remote Control** from any device  
-⚡ **Live Monitoring** of torrents and downloads  
-🎬 **Plex Integration** with automatic organization  
+📡 **RSS Auto-Discovery** - YTS, EZTV, TorrentGalaxy feeds  
+🌊 **qBittorrent Integration** - Real plugin searches  
+📱 **Cloud Dashboard** - Access from anywhere  
+🎬 **Plex Integration** - Automatic file organization  
+⚡ **Live Monitoring** - Real-time download tracking  
 
-## 📱 How It Works
-1. Search torrents from ALL your qBittorrent plugins
-2. Choose: "Add to qBittorrent" OR "Queue for Plex"  
-3. Monitor live download progress
-4. Files automatically organize for Plex
+## 📱 Perfect User Experience
+1. **RSS Tab** - Browse latest releases automatically (no searching!)
+2. **Search Tab** - Manual qBittorrent plugin searches  
+3. **One-click downloads** - Add to qBittorrent OR queue for Plex
+4. **Real-time monitoring** - Live torrent progress
 
-## 🔧 Setup Details
-- **Dashboard**: http://localhost:8000
-- **qBittorrent**: http://localhost:8080 (admin/adminadmin)
-- **Requirements**: Python 3.7+, qBittorrent with Web UI
+## 🌐 Deployment Options
+- **Replit** (recommended) - Import GitHub repo, click Run
+- **Local** - `./start.sh` for home network access  
+- **Hybrid** - Dashboard in cloud + local downloads
 
-## 📚 Full Documentation
-- `README_QBT.md` - Complete setup guide
-- `EXECUTION_READY.md` - Quick execution instructions  
-- `BEYTV_GUIDE.md` - Original documentation
+## 📚 Documentation
+- `REPLIT_DEPLOYMENT.md` - Complete cloud setup guide
+- `README_QBT.md` - Technical documentation  
+- `EXECUTION_READY.md` - Quick start instructions
 
-**Transform your torrenting into a seamless, remote-controlled experience!**
+**Transform torrenting into effortless, remote-controlled content discovery!**

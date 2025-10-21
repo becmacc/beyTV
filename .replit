@@ -31,7 +31,7 @@ support = true
 
 [debugger.interactive]
 transport = "localhost:5678"
-startCommand = ["dap-python", "main_qbt.py"]
+startCommand = ["dap-python", "main.py"]
 
 [debugger.interactive.integratedAdapter]
 dapTcpAddress = "localhost:5678"
@@ -83,4 +83,4 @@ args = []
 
 [replit.deployment]
 deploymentTarget = "cloudrun"
-run = ["python3", "main_qbt.py"]
+run = ["python3", "main.py"]
