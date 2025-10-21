@@ -1,0 +1,86 @@
+# 🎬 BeyTV qBittorrent Edition - Replit Deployment
+
+language = "python3"
+
+[nix]
+channel = "stable-22_11"
+
+[nix.packages]
+python = "3.10"
+
+[[ports]]
+localPort = 8000
+externalPort = 80
+
+[deployment]
+run = ["python3", "main.py"]
+
+[env]
+PYTHONPATH = "/home/runner/BeyTV"
+PORT = "8000"
+
+[languages]
+
+[languages.python3]
+pattern = "**/*.py"
+[languages.python3.languageServer]
+start = "pylsp"
+
+[debugger]
+support = true
+
+[debugger.interactive]
+transport = "localhost:5678"
+startCommand = ["dap-python", "main_qbt.py"]
+
+[debugger.interactive.integratedAdapter]
+dapTcpAddress = "localhost:5678"
+
+[debugger.interactive.initializeMessage]
+command = "initialize"
+type = "request"
+
+[debugger.interactive.initializeMessage.arguments]
+adapterID = "debugpy"
+clientID = "replit"
+clientName = "replit.com"
+columnsStartAt1 = true
+linesStartAt1 = true
+locale = "en-us"
+pathFormat = "path"
+supportsInvalidatedEvent = true
+supportsProgressReporting = true
+supportsRunInTerminalRequest = true
+supportsVariablePaging = true
+supportsVariableType = true
+
+[debugger.interactive.launchMessage]
+command = "launch"
+type = "request"
+
+[debugger.interactive.launchMessage.arguments]
+args = []
+code = "main.py"
+console = "integratedTerminal"
+cwd = "."
+environment = []
+externalConsole = false
+justMyCode = false
+program = "main.py"
+python = "python3"
+request = "launch"
+stopOnEntry = false
+type = "python"
+
+[gitHubImport]
+requiredFiles = [".replit", "replit.nix", "main.py", "requirements.txt"]
+
+[replit]
+entrypoint = "main.py"
+
+[replit.devel]
+args = []
+
+[replit.deployment]
+deploymentTarget = "cloudrun"
+run = ["python3", "main_qbt.py"]
