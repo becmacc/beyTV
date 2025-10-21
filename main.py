@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-BeyTV Replit - Lightweight Media Management Dashboard
-Optimized for Replit's resource constraints
+BeyTV Hybrid - Remote Dashboard with Local Downloads
+Dashboard runs on Replit, downloads happen on your local machine
 """
 
 import os
@@ -10,9 +10,20 @@ import time
 import threading
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
-import requests
-import feedparser
 from pathlib import Path
+
+# Optional imports for enhanced features
+try:
+    import requests
+    HAS_REQUESTS = True
+except ImportError:
+    HAS_REQUESTS = False
+
+try:
+    import feedparser
+    HAS_FEEDPARSER = True
+except ImportError:
+    HAS_FEEDPARSER = False
 
 class BeyTVHandler(SimpleHTTPRequestHandler):
     def do_GET(self):
